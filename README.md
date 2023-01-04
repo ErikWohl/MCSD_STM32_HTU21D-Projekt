@@ -1,7 +1,7 @@
 # MCSD_STM32_HTU21D-Projekt
 Final Project for MCSD using the HTU21D Module for the STM32L432KC on a Click Shield
 
-#Allgemeines
+# Allgemeines
 Implementieren Sie gundsätzlich die Ansteuerung/Auswertung des HTU21D Click-Moduls. Bilden Sie mit mindestem einem passenden "Gegenstück" eine Gruppe (min. ein Output-Click und ein Input-Click).
 
 Sehen Sie eine Ausgabe-/Ansteuermöglichkeit unabhängig vom zweiten Modul vor (beispielsweise über UART).
