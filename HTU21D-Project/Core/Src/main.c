@@ -48,6 +48,10 @@
 #define SOFT_RESET                   0xFE
 
 #define I2C_TIMEOUT 50
+
+#define A 8.1332
+#define B 1762.39
+#define C 235.66
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -70,40 +74,15 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
-char HTU21D_Soft_Reset(){
+char *gcvt(double value, int ndigit, char *buf);
+
+void HTU21D_Soft_Reset(){
 char reg_command[1];
   reg_command[0] = SOFT_RESET;
   //I2C1_Start();                                                // issue I2C start signal
   //I2C1_Write(HTU21D_ADDR,reg_command, 1, END_MODE_STOP);
-  HAL_I2C_Master_Transmit(&hi2c1, HTU21D_ADDR << 1, reg_command, sizeof(reg_command), I2C_TIMEOUT);
+  HAL_I2C_Master_Transmit(&hi2c1, HTU21D_ADDR << 1, (uint8_t *)reg_command, sizeof(reg_command), I2C_TIMEOUT);
   HAL_Delay(15);
-}
-
-void HTU21D_REG_read(){
-  char reg_data[1], txt[12];
-  int reg_value = 0;
-  reg_data[0] = READ_USER_REG;
-  //I2C1_Start();
-  //I2C1_Write(HTU21D_ADDR, reg_data, 1, END_MODE_RESTART);
-  //I2C1_Read (HTU21D_ADDR, reg_data, 1, END_MODE_STOP);
-  HAL_I2C_Master_Transmit(&hi2c1, HTU21D_ADDR << 1, reg_data, sizeof(reg_data), I2C_TIMEOUT);
-  HAL_I2C_Master_Receive(&hi2c1, HTU21D_ADDR << 1, reg_data, sizeof(reg_data), I2C_TIMEOUT);
-
-  reg_value=reg_data[0];
-
-  IntToStr(reg_value, txt);
-  UART1_Write_Text(txt);
-}
-
-void HTU21D_REG_write(){
-  char reg_data[2], txt[12];
-  int reg_value=0;
-  reg_data[0]=WRITE_USER_REG;
-  reg_data[1]=0xC1;
-  HAL_I2C_Master_Transmit(&hi2c1, HTU21D_ADDR << 1, reg_data, sizeof(reg_data), I2C_TIMEOUT);
-  //I2C1_Start();
-  //I2C1_Write(HTU21D_ADDR, reg_data, 2, END_MODE_STOP);
-  reg_value = reg_data[0];
 }
 
 unsigned HTU21D_ReadValue(char regSelect){
@@ -114,10 +93,10 @@ char reg_data[3];
   //I2C1_Start();
   //I2C1_Write(HTU21D_ADDR, reg_data, 1, END_MODE_RESTART);
   //I2C1_Read (HTU21D_ADDR, reg_data, 3, END_MODE_STOP);
-  HAL_I2C_Master_Transmit(&hi2c1, HTU21D_ADDR << 1, reg_data, 1, I2C_TIMEOUT);
-  HAL_I2C_Master_Receive(&hi2c1, HTU21D_ADDR << 1, reg_data, sizeof(reg_data), I2C_TIMEOUT);
+  HAL_I2C_Master_Transmit(&hi2c1, HTU21D_ADDR << 1, (uint8_t *)reg_data, 1, I2C_TIMEOUT);
+  HAL_I2C_Master_Receive(&hi2c1, HTU21D_ADDR << 1, (uint8_t *)reg_data, sizeof(reg_data), I2C_TIMEOUT);
 
-  /*
+  /* FOR TESTING PURPOSES, ENABLE TO SEE THE RECEIVED BITS
   char output[12];
 
 	char *beginMsg = "BITs: ";
@@ -149,10 +128,19 @@ float procTemperatureValue(unsigned ValueTemp){
 }
 
 float procHumidityValue(unsigned ValueTemp){
-  char txt[12];
   float calc;
   calc = -6.0 + 125.0 * ValueTemp / 65536.0;
   return calc;
+}
+
+float calculatePartialPressure(float temperature) {
+	double power = A-(B/(temperature+C));
+	return (float)pow(10, power);
+}
+
+float calculateDewPointTemperature(float humidity, float partialPressure) {
+	double result = (B / (log10(humidity*(partialPressure/100))-A)) + C;
+	return (float)result * (-1);
 }
 /* USER CODE END PFP */
 
@@ -202,27 +190,47 @@ int main(void)
   HAL_Delay(50);
   while (1)
   {
-	char buf[10];
-	float x = 0;
-	x = procTemperatureValue(HTU21D_ReadValue(TRIGGER_TEMP_MEASURE_HOLD));
-	gcvt(x, 7, buf);
+	char bufTemp[10];
+	float temp = 0;
+	temp = procTemperatureValue(HTU21D_ReadValue(TRIGGER_TEMP_MEASURE_HOLD));
+	gcvt(temp, 7, bufTemp);
 
 	char bufHum[10];
 	float hum = 0;
 	hum = procHumidityValue(HTU21D_ReadValue(TRIGGER_HUMD_MEASURE_HOLD));
 	gcvt(hum, 7, bufHum);
 
+	char bufPressure[10];
+	float pressure = 0;
+	pressure = calculatePartialPressure(temp);
+	gcvt(pressure, 7, bufPressure);
+
+	char bufDewPoint[10];
+	float dewPoint = 0;
+	dewPoint = calculateDewPointTemperature(hum, pressure);
+	gcvt(dewPoint, 7, bufDewPoint);
+
 	char *beginMsg = "Temp: ";
 	if(HAL_UART_Transmit(&huart2, (uint8_t *)beginMsg, strlen(beginMsg), 1000)==HAL_ERROR)Error_Handler();
 
-	if(HAL_UART_Transmit(&huart2, (uint8_t*) buf, strlen(buf), 1000)==HAL_ERROR)Error_Handler();
+	if(HAL_UART_Transmit(&huart2, (uint8_t*) bufTemp, strlen(bufTemp), 1000)==HAL_ERROR)Error_Handler();
 
-	char *midMsg = "°C Humid: ";
-	if(HAL_UART_Transmit(&huart2, (uint8_t *)midMsg, strlen(midMsg), 1000)==HAL_ERROR)Error_Handler();
+	char *midMsg1 = "°C Humid: ";
+	if(HAL_UART_Transmit(&huart2, (uint8_t *)midMsg1, strlen(midMsg1), 1000)==HAL_ERROR)Error_Handler();
 
 	if(HAL_UART_Transmit(&huart2, (uint8_t*) bufHum, strlen(bufHum), 1000)==HAL_ERROR)Error_Handler();
 
-	char *receiveMsg = "%\n\r";
+	char *midMsg2 = "°C Pressure: ";
+	if(HAL_UART_Transmit(&huart2, (uint8_t *)midMsg2, strlen(midMsg2), 1000)==HAL_ERROR)Error_Handler();
+
+	if(HAL_UART_Transmit(&huart2, (uint8_t*) bufPressure, strlen(bufPressure), 1000)==HAL_ERROR)Error_Handler();
+
+	char *midMsg3 = " kPa Dew Point: ";
+	if(HAL_UART_Transmit(&huart2, (uint8_t *)midMsg3, strlen(midMsg3), 1000)==HAL_ERROR)Error_Handler();
+
+	if(HAL_UART_Transmit(&huart2, (uint8_t*) bufDewPoint, strlen(bufDewPoint), 1000)==HAL_ERROR)Error_Handler();
+
+	char *receiveMsg = "°C\n\r";
 	if(HAL_UART_Transmit(&huart2, (uint8_t *)receiveMsg, strlen(receiveMsg), 1000)==HAL_ERROR)Error_Handler();
 	HAL_Delay(1000);
     /* USER CODE END WHILE */
