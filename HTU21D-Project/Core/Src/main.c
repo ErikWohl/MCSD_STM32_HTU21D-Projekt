@@ -21,9 +21,15 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+
+/*--- COMMON LIBRARIES ---*/
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+
+/*--- CUSTOM LIBRARIES ---*/
+#include "htu21d.c"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -33,25 +39,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define HTU21D_ADDR                 0x40
-
-#define HTU21D_CLEAR_BIT            0x40    // Clears any pending interrupt (write 1 to clear)
-#define HTU21D_WORD_BIT             0x20    // 1 = read/write word (rather than byte)
-#define HTU21D_BLOCK_BIT            0x10    // 1 = using block read/write
-
-#define TRIGGER_TEMP_MEASURE_HOLD    0xE3
-#define TRIGGER_HUMD_MEASURE_HOLD    0xE5
-#define TRIGGER_TEMP_MEASURE_NOHOLD  0xF3
-#define TRIGGER_HUMD_MEASURE_NOHOLD  0xF5
-#define WRITE_USER_REG               0xE6
-#define READ_USER_REG                0xE7
-#define SOFT_RESET                   0xFE
-
-#define I2C_TIMEOUT 50
-
-#define A 8.1332
-#define B 1762.39
-#define C 235.66
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -76,72 +63,6 @@ static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
 char *gcvt(double value, int ndigit, char *buf);
 
-void HTU21D_Soft_Reset(){
-char reg_command[1];
-  reg_command[0] = SOFT_RESET;
-  //I2C1_Start();                                                // issue I2C start signal
-  //I2C1_Write(HTU21D_ADDR,reg_command, 1, END_MODE_STOP);
-  HAL_I2C_Master_Transmit(&hi2c1, HTU21D_ADDR << 1, (uint8_t *)reg_command, sizeof(reg_command), I2C_TIMEOUT);
-  HAL_Delay(15);
-}
-
-unsigned HTU21D_ReadValue(char regSelect){
-unsigned value = 0;
-char reg_data[3];
-
-  reg_data[0] = regSelect;
-  //I2C1_Start();
-  //I2C1_Write(HTU21D_ADDR, reg_data, 1, END_MODE_RESTART);
-  //I2C1_Read (HTU21D_ADDR, reg_data, 3, END_MODE_STOP);
-  HAL_I2C_Master_Transmit(&hi2c1, HTU21D_ADDR << 1, (uint8_t *)reg_data, 1, I2C_TIMEOUT);
-  HAL_I2C_Master_Receive(&hi2c1, HTU21D_ADDR << 1, (uint8_t *)reg_data, sizeof(reg_data), I2C_TIMEOUT);
-
-  /* FOR TESTING PURPOSES, ENABLE TO SEE THE RECEIVED BITS
-  char output[12];
-
-	char *beginMsg = "BITs: ";
-	char *spaceMsg = " ";
-	if(HAL_UART_Transmit(&huart2, (uint8_t *)beginMsg, strlen(beginMsg), 1000)==HAL_ERROR)Error_Handler();
-
-	itoa(reg_data[0], output, 2);
-	if(HAL_UART_Transmit(&huart2, (uint8_t*) output, strlen(output), 1000)==HAL_ERROR)Error_Handler();
-	if(HAL_UART_Transmit(&huart2, (uint8_t *)spaceMsg, strlen(spaceMsg), 1000)==HAL_ERROR)Error_Handler();
-
-	itoa(reg_data[1], output, 2);
-	if(HAL_UART_Transmit(&huart2, (uint8_t*) output, strlen(output), 1000)==HAL_ERROR)Error_Handler();
-	if(HAL_UART_Transmit(&huart2, (uint8_t *)spaceMsg, strlen(spaceMsg), 1000)==HAL_ERROR)Error_Handler();
-
-	itoa(reg_data[2], output, 2);
-	if(HAL_UART_Transmit(&huart2, (uint8_t*) output, strlen(output), 1000)==HAL_ERROR)Error_Handler();
-	if(HAL_UART_Transmit(&huart2, (uint8_t *)spaceMsg, strlen(spaceMsg), 1000)==HAL_ERROR)Error_Handler();
-*/
-
-  value = ((unsigned)reg_data[0] << 8) | reg_data[1] ;
-  return value & 0xFFFC;            // Clear status bits
-  //return value;
-}
-
-float procTemperatureValue(unsigned ValueTemp){
-  float calc;
-  calc = -46.85 + 175.72 * ValueTemp / 65536.0;
-  return calc;
-}
-
-float procHumidityValue(unsigned ValueTemp){
-  float calc;
-  calc = -6.0 + 125.0 * ValueTemp / 65536.0;
-  return calc;
-}
-
-float calculatePartialPressure(float temperature) {
-	double power = A-(B/(temperature+C));
-	return (float)pow(10, power);
-}
-
-float calculateDewPointTemperature(float humidity, float partialPressure) {
-	double result = (B / (log10(humidity*(partialPressure/100))-A)) + C;
-	return (float)result * (-1);
-}
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -181,6 +102,7 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
+  //HTU21D_Init()
   /* USER CODE END 2 */
 
   /* Infinite loop */

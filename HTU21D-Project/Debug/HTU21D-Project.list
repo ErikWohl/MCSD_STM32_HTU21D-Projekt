@@ -35,15 +35,15 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  15 .debug_ranges 00000d10  00000000  00000000  000340d8  2**3
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 16 .debug_macro  0002158f  00000000  00000000  00034de8  2**0
+ 16 .debug_macro  00020b2a  00000000  00000000  00034de8  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 17 .debug_line   0001104a  00000000  00000000  00056377  2**0
+ 17 .debug_line   00011056  00000000  00000000  00055912  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_str    000c4434  00000000  00000000  000673c1  2**0
+ 18 .debug_str    000c445e  00000000  00000000  00066968  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .comment      00000050  00000000  00000000  0012b7f5  2**0
+ 19 .comment      00000050  00000000  00000000  0012adc6  2**0
                   CONTENTS, READONLY
- 20 .debug_frame  00004d88  00000000  00000000  0012b848  2**2
+ 20 .debug_frame  00004d88  00000000  00000000  0012ae18  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 Disassembly of section .text:
@@ -1269,8 +1269,6 @@ char reg_command[1];
   reg_command[0] = SOFT_RESET;
  8000f52:	23fe      	movs	r3, #254	; 0xfe
  8000f54:	713b      	strb	r3, [r7, #4]
-  //I2C1_Start();                                                // issue I2C start signal
-  //I2C1_Write(HTU21D_ADDR,reg_command, 1, END_MODE_STOP);
   HAL_I2C_Master_Transmit(&hi2c1, HTU21D_ADDR << 1, (uint8_t *)reg_command, sizeof(reg_command), I2C_TIMEOUT);
  8000f56:	1d3a      	adds	r2, r7, #4
  8000f58:	2332      	movs	r3, #50	; 0x32
@@ -1305,9 +1303,6 @@ char reg_data[3];
   reg_data[0] = regSelect;
  8000f86:	79fb      	ldrb	r3, [r7, #7]
  8000f88:	723b      	strb	r3, [r7, #8]
-  //I2C1_Start();
-  //I2C1_Write(HTU21D_ADDR, reg_data, 1, END_MODE_RESTART);
-  //I2C1_Read (HTU21D_ADDR, reg_data, 3, END_MODE_STOP);
   HAL_I2C_Master_Transmit(&hi2c1, HTU21D_ADDR << 1, (uint8_t *)reg_data, 1, I2C_TIMEOUT);
  8000f8a:	f107 0208 	add.w	r2, r7, #8
  8000f8e:	2332      	movs	r3, #50	; 0x32
@@ -1453,7 +1448,7 @@ float calculatePartialPressure(float temperature) {
  80010b2:	b084      	sub	sp, #16
  80010b4:	af00      	add	r7, sp, #0
  80010b6:	ed87 0a01 	vstr	s0, [r7, #4]
-	double power = A-(B/(temperature+C));
+	double power = Variable_A - (Variable_B / (temperature + Variable_C));
  80010ba:	6878      	ldr	r0, [r7, #4]
  80010bc:	f7ff fa44 	bl	8000548 <__aeabi_f2d>
  80010c0:	a317      	add	r3, pc, #92	; (adr r3, 8001120 <calculatePartialPressure+0x70>)
@@ -1505,7 +1500,7 @@ float calculateDewPointTemperature(float humidity, float partialPressure) {
  800113c:	af00      	add	r7, sp, #0
  800113e:	ed87 0a01 	vstr	s0, [r7, #4]
  8001142:	edc7 0a00 	vstr	s1, [r7]
-	double result = (B / (log10(humidity*(partialPressure/100))-A)) + C;
+	double result = (Variable_B / (log10(humidity * (partialPressure / 100))- Variable_A)) + Variable_C;
  8001146:	edd7 7a00 	vldr	s15, [r7]
  800114a:	eddf 6a23 	vldr	s13, [pc, #140]	; 80011d8 <calculateDewPointTemperature+0xa0>
  800114e:	ee87 7aa6 	vdiv.f32	s14, s15, s13
@@ -1590,7 +1585,7 @@ int main(void)
  80011ee:	f000 f9c5 	bl	800157c <MX_USART2_UART_Init>
   MX_I2C1_Init();
  80011f2:	f000 f983 	bl	80014fc <MX_I2C1_Init>
-
+  //HTU21D_Init()
   /* USER CODE END 2 */
 
   /* Infinite loop */
