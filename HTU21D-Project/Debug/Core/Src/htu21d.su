@@ -1,0 +1,7 @@
+../Core/Src/htu21d.c:25:6:HTU21D_Init	8	static
+../Core/Src/htu21d.c:33:6:HTU21D_Soft_Reset	24	static
+../Core/Src/htu21d.c:45:10:HTU21D_ReadValue	32	static
+../Core/Src/htu21d.c:83:7:procTemperatureValue	24	static
+../Core/Src/htu21d.c:94:7:procHumidityValue	24	static
+../Core/Src/htu21d.c:105:7:calculatePartialPressure	24	static
+../Core/Src/htu21d.c:116:7:calculateDewPointTemperature	24	static
