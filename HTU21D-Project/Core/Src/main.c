@@ -28,7 +28,7 @@
 #include <math.h>
 
 /*--- CUSTOM LIBRARIES ---*/
-#include "htu21d.c"
+#include "htu21d.h"
 
 /* USER CODE END Includes */
 
@@ -102,7 +102,7 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
-  //HTU21D_Init()
+  HTU21D_Init(hi2c1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
