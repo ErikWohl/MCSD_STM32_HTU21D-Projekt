@@ -31,7 +31,28 @@
 
 #define I2C_TIMEOUT 50
 
-/* ########################## OTHER DECLERATIONS ############################## */
+/* ########################## STRUCTURES ############################## */
+
+typedef enum {
+	NONE = 0x00,
+	TEMPERATURE,
+	HUMIDITY,
+	PARTIAL_PRESSURE,
+	DEW_POINT_TEMPERATURE
+} CHECK_VALUE_TYPE;
+
+typedef enum {
+	BELOW = 0x00,
+	ABOVE
+} CHECK_TRIGGER;
+
+typedef struct {
+	CHECK_VALUE_TYPE check_value_type;
+	CHECK_TRIGGER check_trigger;
+	float check_threshold;
+} HTU21D_WARNING;
+
+/* ########################## OTHER DECLARATIONS ############################## */
 
 // Constant values needed to calculate the partial pressure and dew point temperature
 #define Variable_A 8.1332
@@ -39,7 +60,7 @@
 #define Variable_C 235.66
 
 extern I2C_HandleTypeDef i2cDef;
-
+extern HTU21D_WARNING currentWarning;
 /* ########################## METHODS ############################## */
 
 /**
@@ -64,31 +85,61 @@ extern unsigned HTU21D_ReadValue(char regSelect);
 
 /**
   * @brief  Calculates the temperature from the raw data
-  * @param valueTemp data value from sensor
+  * @param  valueTemp data value from sensor
   * @retval temperature
   */
 extern float procTemperatureValue(unsigned valueTemp);
 
 /**
   * @brief  Calculates the humidity from the raw data
-  * @param valueTemp data value from sensor
+  * @param  valueTemp data value from sensor
   * @retval humidity
   */
 extern float procHumidityValue(unsigned valueTemp);
 
 /**
+  * @brief  Converts the temperature from the celsius to fahrenheit
+  * @param  tempInCelsius temperature in °C
+  * @retval temmperature in °F
+  */
+float calcCelsiusToFahrenheit(float tempInCelsius);
+
+/**
   * @brief  Calculates the partial pressure from the temperature
-  * @param temperature value from sensor after calculation
+  * @param  temperature value from sensor after calculation
   * @retval partial pressure
   */
 extern float calculatePartialPressure(float temperature);
 
 /**
   * @brief  Calculates the dew point temperature from the humidity and partial pressure
-  * @param humidity value from sensor after calculation
-  * @param partial pressure calculated value
+  * @param  humidity value from sensor after calculation
+  * @param  partial pressure calculated value
   * @retval dew point temperature
   */
 extern float calculateDewPointTemperature(float humidity, float partialPressure);
+
+/**
+  * @brief  Set the value type and threshold of the warning that should be checked
+  * @param  value_type type of value that should be checked
+  * @param  trigger if the warning should be triggered, when the value is below or above a certain threshold
+  * @param  threshold the threshold value that needs to be checked
+  * @retval none
+  */
+extern void setWarning(CHECK_VALUE_TYPE value_type, CHECK_TRIGGER trigger, float threshold);
+
+/**
+  * @brief  Returns the value depending on what value type was inputted
+  * @param  value_type type of value that should be pulled
+  * @retval sensor value of the input type
+  */
+extern float getValue(CHECK_VALUE_TYPE value_type);
+
+/**
+  * @brief  Checks if a warning is set and if the warning is triggered
+  * @param  value that needs to be checked
+  * @retval if the warning is triggered
+  */
+extern bool isTriggered(float value);
 
 #endif /* INC_HTU21D_H_ */

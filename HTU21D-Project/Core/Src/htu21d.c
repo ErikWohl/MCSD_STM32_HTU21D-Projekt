@@ -9,11 +9,12 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
-
+#include <stdbool.h>
 /*--- CUSTOM LIBRARIES ---*/
 #include "htu21d.h"
 /*--- GLOBAL VARIABLES ---*/
 I2C_HandleTypeDef i2cDef;
+HTU21D_WARNING currentWarning;
 /* -------- METHODS -------- */
 
 
@@ -24,6 +25,9 @@ I2C_HandleTypeDef i2cDef;
   */
 void HTU21D_Init(I2C_HandleTypeDef i2cVal) {
 	i2cDef = i2cVal;
+	currentWarning.check_value_type = NONE;
+	currentWarning.check_trigger = BELOW;
+	currentWarning.check_threshold = 0;
 }
 
 /**
@@ -77,7 +81,7 @@ char reg_data[3];
 
 /**
   * @brief  Calculates the temperature from the raw data
-  * @param valueTemp data value from sensor
+  * @param  valueTemp data value from sensor
   * @retval temperature
   */
 float procTemperatureValue(unsigned valueTemp){
@@ -88,7 +92,7 @@ float procTemperatureValue(unsigned valueTemp){
 
 /**
   * @brief  Calculates the humidity from the raw data
-  * @param valueTemp data value from sensor
+  * @param  valueTemp data value from sensor
   * @retval humidity
   */
 float procHumidityValue(unsigned valueTemp){
@@ -98,8 +102,17 @@ float procHumidityValue(unsigned valueTemp){
 }
 
 /**
+  * @brief  Converts the temperature from the celsius to fahrenheit
+  * @param  tempInCelsius temperature in °C
+  * @retval temmperature in °F
+  */
+float calcCelsiusToFahrenheit(float tempInCelsius) {
+	return tempInCelsius * (9.0/5.0) + 32.0;
+}
+
+/**
   * @brief  Calculates the partial pressure from the temperature
-  * @param temperature value from sensor after calculation
+  * @param  temperature value from sensor after calculation
   * @retval partial pressure
   */
 float calculatePartialPressure(float temperature) {
@@ -109,11 +122,88 @@ float calculatePartialPressure(float temperature) {
 
 /**
   * @brief  Calculates the dew point temperature from the humidity and partial pressure
-  * @param humidity value from sensor after calculation
-  * @param partial pressure calculated value
+  * @param  humidity value from sensor after calculation
+  * @param  partial pressure calculated value
   * @retval dew point temperature
   */
 float calculateDewPointTemperature(float humidity, float partialPressure) {
 	double result = (Variable_B / (log10(humidity * (partialPressure / 100))- Variable_A)) + Variable_C;
 	return (float)result * (-1);
 }
+
+/**
+  * @brief  Set the value type and threshold of the warning that should be checked
+  * @param  value_type type of value that should be checked
+  * @param  trigger if the warning should be triggered, when the value is below or above a certain threshold
+  * @param  threshold the threshold value that needs to be checked
+  * @retval none
+  */
+void setWarning(CHECK_VALUE_TYPE value_type, CHECK_TRIGGER trigger, float threshold) {
+	currentWarning.check_value_type = value_type;
+	currentWarning.check_trigger = trigger;
+	currentWarning.check_threshold = threshold;
+}
+
+/**
+  * @brief  Returns the value depending on what value type was inputted
+  * @param  value_type type of value that should be pulled
+  * @retval sensor value of the input type
+  */
+float getValue(CHECK_VALUE_TYPE value_type) {
+	float value = 0;
+
+	switch(value_type) {
+		case TEMPERATURE: {
+			value = procTemperatureValue(HTU21D_ReadValue(TRIGGER_TEMP_MEASURE_HOLD));
+			break;
+		}
+
+		case HUMIDITY: {
+			value = procHumidityValue(HTU21D_ReadValue(TRIGGER_HUMD_MEASURE_HOLD));
+			break;
+		}
+
+		case PARTIAL_PRESSURE: {
+			float temp = procTemperatureValue(HTU21D_ReadValue(TRIGGER_TEMP_MEASURE_HOLD));
+			value = calculatePartialPressure(temp);
+			break;
+		}
+
+		case DEW_POINT_TEMPERATURE: {
+			float temp = procTemperatureValue(HTU21D_ReadValue(TRIGGER_TEMP_MEASURE_HOLD));
+			float hum = procHumidityValue(HTU21D_ReadValue(TRIGGER_HUMD_MEASURE_HOLD));
+			float pressure = calculatePartialPressure(temp);
+			value = calculateDewPointTemperature(hum, pressure);
+			break;
+		}
+
+		default: {
+			value = 0;
+		}
+	}
+
+	return value;
+}
+
+/**
+  * @brief  Checks if a warning is set and if the warning is triggered
+  * @param  value that needs to be checked
+  * @retval if the warning is triggered
+  */
+bool isTriggered(float value) {
+	if(currentWarning.check_value_type == NONE) {
+		return false;
+	}
+
+	if(currentWarning.check_trigger == BELOW && value < currentWarning.check_threshold) {
+		return true;
+	}
+
+	if(currentWarning.check_trigger == ABOVE && value > currentWarning.check_threshold) {
+		return true;
+	}
+
+	return false;
+}
+
+

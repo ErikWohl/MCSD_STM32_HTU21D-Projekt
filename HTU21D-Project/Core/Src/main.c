@@ -26,7 +26,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
-
+#include <stdbool.h>
 /*--- CUSTOM LIBRARIES ---*/
 #include "htu21d.h"
 
@@ -112,25 +112,29 @@ int main(void)
   HAL_Delay(50);
   while (1)
   {
+	  /*
 	char bufTemp[10];
 	float temp = 0;
-	temp = procTemperatureValue(HTU21D_ReadValue(TRIGGER_TEMP_MEASURE_HOLD));
+	temp = getValue(TEMPERATURE);
 	gcvt(temp, 7, bufTemp);
 
 	char bufHum[10];
 	float hum = 0;
-	hum = procHumidityValue(HTU21D_ReadValue(TRIGGER_HUMD_MEASURE_HOLD));
+	hum = getValue(HUMIDITY);
 	gcvt(hum, 7, bufHum);
 
 	char bufPressure[10];
 	float pressure = 0;
-	pressure = calculatePartialPressure(temp);
+	pressure = getValue(PARTIAL_PRESSURE);
 	gcvt(pressure, 7, bufPressure);
 
 	char bufDewPoint[10];
 	float dewPoint = 0;
-	dewPoint = calculateDewPointTemperature(hum, pressure);
+	dewPoint = getValue(DEW_POINT_TEMPERATURE);
 	gcvt(dewPoint, 7, bufDewPoint);
+
+	sprintf((char*)msg, "|%u.%0*i%s", (unsigned int) value/100, 2, (unsigned int)value%100, "°C");
+
 
 	char *beginMsg = "Temp: ";
 	if(HAL_UART_Transmit(&huart2, (uint8_t *)beginMsg, strlen(beginMsg), 1000)==HAL_ERROR)Error_Handler();
@@ -154,6 +158,47 @@ int main(void)
 
 	char *receiveMsg = "°C\n\r";
 	if(HAL_UART_Transmit(&huart2, (uint8_t *)receiveMsg, strlen(receiveMsg), 1000)==HAL_ERROR)Error_Handler();
+*/
+
+	char msg[100];
+	float htu21d_value = 0;
+
+	htu21d_value = getValue(TEMPERATURE);
+
+    sprintf((char*)msg, "Temp C is: %0.2f%s", htu21d_value, "°C");
+	if(HAL_UART_Transmit(&huart2, (uint8_t*) msg, strlen(msg), 1000)==HAL_ERROR)Error_Handler();
+
+	htu21d_value = calcCelsiusToFahrenheit(htu21d_value);
+
+    sprintf((char*)msg, " Temp F is: %0.2f%s", htu21d_value, "°F");
+	if(HAL_UART_Transmit(&huart2, (uint8_t*) msg, strlen(msg), 1000)==HAL_ERROR)Error_Handler();
+
+	htu21d_value = getValue(HUMIDITY);
+
+    sprintf((char*)msg, " Humid is: %0.2f%s", htu21d_value, "%");
+	if(HAL_UART_Transmit(&huart2, (uint8_t*) msg, strlen(msg), 1000)==HAL_ERROR)Error_Handler();
+
+	htu21d_value = getValue(PARTIAL_PRESSURE);
+
+    sprintf((char*)msg, " Pressure is: %0.2f%s", htu21d_value, " kPa");
+	if(HAL_UART_Transmit(&huart2, (uint8_t*) msg, strlen(msg), 1000)==HAL_ERROR)Error_Handler();
+
+	htu21d_value = getValue(DEW_POINT_TEMPERATURE);
+
+    sprintf((char*)msg, " Dew Point is: %0.2f%s\n\r", htu21d_value, "°C");
+	if(HAL_UART_Transmit(&huart2, (uint8_t*) msg, strlen(msg), 1000)==HAL_ERROR)Error_Handler();
+
+
+	/*
+	char bufTemp[10];
+	gcvt(htu21d_value, 7, bufTemp);
+	char *beginMsg = "Temp: ";
+	if(HAL_UART_Transmit(&huart2, (uint8_t *)beginMsg, strlen(beginMsg), 1000)==HAL_ERROR)Error_Handler();
+	if(HAL_UART_Transmit(&huart2, (uint8_t*) bufTemp, strlen(bufTemp), 1000)==HAL_ERROR)Error_Handler();
+	char *receiveMsg = "°C\n\r";
+	if(HAL_UART_Transmit(&huart2, (uint8_t *)receiveMsg, strlen(receiveMsg), 1000)==HAL_ERROR)Error_Handler();
+*/
+
 	HAL_Delay(1000);
     /* USER CODE END WHILE */
 
