@@ -8,4 +8,4 @@
 ../Core/Src/htu21d.c:129:7:calculateDewPointTemperature	24	static
 ../Core/Src/htu21d.c:141:6:setWarning	16	static
 ../Core/Src/htu21d.c:152:7:getValue	40	static
-../Core/Src/htu21d.c:193:6:isTriggered	16	static
+../Core/Src/htu21d.c:194:6:isTriggered	16	static

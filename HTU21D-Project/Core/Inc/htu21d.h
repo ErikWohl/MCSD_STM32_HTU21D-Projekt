@@ -85,17 +85,17 @@ extern unsigned HTU21D_ReadValue(char regSelect);
 
 /**
   * @brief  Calculates the temperature from the raw data
-  * @param  valueTemp data value from sensor
+  * @param  sensorValue data value from sensor
   * @retval temperature
   */
-extern float procTemperatureValue(unsigned valueTemp);
+extern float procTemperatureValue(unsigned sensorValue);
 
 /**
   * @brief  Calculates the humidity from the raw data
-  * @param  valueTemp data value from sensor
+  * @param  sensorValue data value from sensor
   * @retval humidity
   */
-extern float procHumidityValue(unsigned valueTemp);
+extern float procHumidityValue(unsigned sensorValue);
 
 /**
   * @brief  Converts the temperature from the celsius to fahrenheit
@@ -138,8 +138,9 @@ extern float getValue(CHECK_VALUE_TYPE value_type);
 /**
   * @brief  Checks if a warning is set and if the warning is triggered
   * @param  value that needs to be checked
+  * @param  value type that needs to be checked
   * @retval if the warning is triggered
   */
-extern bool isTriggered(float value);
+extern bool isTriggered(float value, CHECK_VALUE_TYPE value_type);
 
 #endif /* INC_HTU21D_H_ */

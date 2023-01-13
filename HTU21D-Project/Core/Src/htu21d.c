@@ -81,23 +81,23 @@ char reg_data[3];
 
 /**
   * @brief  Calculates the temperature from the raw data
-  * @param  valueTemp data value from sensor
+  * @param  sensorValue data value from sensor
   * @retval temperature
   */
-float procTemperatureValue(unsigned valueTemp){
+float procTemperatureValue(unsigned sensorValue){
   float calc;
-  calc = -46.85 + 175.72 * valueTemp / 65536.0;
+  calc = -46.85 + 175.72 * sensorValue / 65536.0;
   return calc;
 }
 
 /**
   * @brief  Calculates the humidity from the raw data
-  * @param  valueTemp data value from sensor
+  * @param  sensorValue data value from sensor
   * @retval humidity
   */
-float procHumidityValue(unsigned valueTemp){
+float procHumidityValue(unsigned sensorValue){
   float calc;
-  calc = -6.0 + 125.0 * valueTemp / 65536.0;
+  calc = -6.0 + 125.0 * sensorValue / 65536.0;
   return calc;
 }
 
@@ -188,10 +188,11 @@ float getValue(CHECK_VALUE_TYPE value_type) {
 /**
   * @brief  Checks if a warning is set and if the warning is triggered
   * @param  value that needs to be checked
+  * @param  value type that needs to be checked
   * @retval if the warning is triggered
   */
-bool isTriggered(float value) {
-	if(currentWarning.check_value_type == NONE) {
+bool isTriggered(float value, CHECK_VALUE_TYPE value_type) {
+	if(currentWarning.check_value_type == NONE || currentWarning.check_value_type != value_type) {
 		return false;
 	}
 

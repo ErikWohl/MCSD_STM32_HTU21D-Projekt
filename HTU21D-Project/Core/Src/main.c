@@ -49,10 +49,12 @@
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
 
+TIM_HandleTypeDef htim16;
+
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-uint8_t addr = 0;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -60,14 +62,82 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
+static void MX_TIM16_Init(void);
 /* USER CODE BEGIN PFP */
 char *gcvt(double value, int ndigit, char *buf);
-
+bool buttoncheck();
+void sendData(CHECK_VALUE_TYPE value_type);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+bool send_data = false;
+bool fahrenheit = false;
 
+// counter muss ca 45 erreichen für eine sek
+// ergo 5 sek = 45*5 = 225
+uint16_t fcount = 225;
+bool buttoncheck()
+{
+	int delay = 10; // Milliseconds
+	int val1 = HAL_GPIO_ReadPin(Button_GPIO_Port, Button_Pin);
+	HAL_Delay(delay);
+	int val2 = HAL_GPIO_ReadPin(Button_GPIO_Port, Button_Pin);
+	HAL_Delay(delay);
+	int val3 = HAL_GPIO_ReadPin(Button_GPIO_Port, Button_Pin);
+
+	return !(val1 && val2 && val3);
+	// 3x switch input
+	// delay between getting inputs
+	// only return true if all inputs are 0
+}
+
+void sendData(CHECK_VALUE_TYPE value_type) {
+	char msg[100];
+	float htu21d_value = 0;
+
+	switch(value_type) {
+		case TEMPERATURE: {
+			htu21d_value = getValue(TEMPERATURE);
+			bool warning = isTriggered(htu21d_value, TEMPERATURE);
+			if(!fahrenheit) {
+				sprintf((char*)msg, "Temp C: %0.2f%s|Warning: %s\n\r", htu21d_value, "°C", warning ? "true" : "false");
+			} else {
+				htu21d_value = calcCelsiusToFahrenheit(htu21d_value);
+				sprintf((char*)msg, "Temp F: %0.2f%s|Warning: %s\n\r", htu21d_value, "°F", warning ? "true" : "false");
+			}
+			break;
+		}
+		case HUMIDITY: {
+			htu21d_value = getValue(HUMIDITY);
+			bool warning = isTriggered(htu21d_value, HUMIDITY);
+			sprintf((char*)msg, "Humid: %0.2f%s|Warning: %s\n\r", htu21d_value, "%", warning ? "true" : "false");
+			break;
+		}
+		case PARTIAL_PRESSURE: {
+			htu21d_value = getValue(PARTIAL_PRESSURE);
+			bool warning = isTriggered(htu21d_value, PARTIAL_PRESSURE);
+			sprintf((char*)msg, "Pressure: %0.2f%s|Warning: %s\n\r", htu21d_value, " kPa", warning ? "true" : "false");
+			break;
+		}
+		case DEW_POINT_TEMPERATURE: {
+			htu21d_value = getValue(DEW_POINT_TEMPERATURE);
+			bool warning = isTriggered(htu21d_value, DEW_POINT_TEMPERATURE);
+			if(!fahrenheit) {
+				sprintf((char*)msg, "Dew Point C: %0.2f%s|Warning: %s\n\r", htu21d_value, "°C", warning ? "true" : "false");
+			} else {
+				htu21d_value = calcCelsiusToFahrenheit(htu21d_value);
+				sprintf((char*)msg, "Dew Point F: %0.2f%s|Warning: %s\n\r", htu21d_value, "°F", warning ? "true" : "false");
+			}
+			break;
+		}
+		default:{
+			break;
+		}
+	}
+
+	if(HAL_UART_Transmit(&huart2, (uint8_t*) msg, strlen(msg), 1000)==HAL_ERROR)Error_Handler();
+}
 /* USER CODE END 0 */
 
 /**
@@ -100,106 +170,67 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_I2C1_Init();
+  MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
-
+  uint16_t value_type = 1;
+  int counter = 0;
+  bool buttonpress = false;
   HTU21D_Init(hi2c1);
+
+  setWarning(TEMPERATURE, ABOVE, 28);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  HAL_TIM_Base_Start_IT(&htim16);
   HTU21D_Soft_Reset();
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
   HAL_Delay(50);
   while (1)
   {
-	  /*
-	char bufTemp[10];
-	float temp = 0;
-	temp = getValue(TEMPERATURE);
-	gcvt(temp, 7, bufTemp);
+	buttonpress = buttoncheck();
 
-	char bufHum[10];
-	float hum = 0;
-	hum = getValue(HUMIDITY);
-	gcvt(hum, 7, bufHum);
+	if(buttonpress) {
+		//Nur für den ersten press soll der value type sich ändern (man will das durchcyclen verhindern)
+		if(counter == 0) {
+			value_type = value_type % 4;
+			// das enum beginnt mit NONE, wir wollen also 0 überspringen aber 1-4 haben
+			value_type++;
+		}
 
-	char bufPressure[10];
-	float pressure = 0;
-	pressure = getValue(PARTIAL_PRESSURE);
-	gcvt(pressure, 7, bufPressure);
+		if(counter != -1) {
+			counter++;
+		}
+		// Umstellen von C auf F und vize versa
+		if(counter >= fcount) {
+			fahrenheit = !fahrenheit;
+			// Verhindert, dass nach dem umsetzen die value types wieder geändert werden
+			// Man muss den Button danach loslassen um wieder value types zu ändern
+			counter = -1;
+		}
+	} else {
+		//Zurücksetzen des counters, wenn er zu kurz gedrückt wurde
+		if((counter > 0 || counter == -1) && counter < fcount) {
+			counter = 0;
+		}
+	}
 
-	char bufDewPoint[10];
-	float dewPoint = 0;
-	dewPoint = getValue(DEW_POINT_TEMPERATURE);
-	gcvt(dewPoint, 7, bufDewPoint);
+	if(send_data)
+	{
+		send_data = false;
+		sendData(value_type);
 
-	sprintf((char*)msg, "|%u.%0*i%s", (unsigned int) value/100, 2, (unsigned int)value%100, "°C");
-
-
-	char *beginMsg = "Temp: ";
-	if(HAL_UART_Transmit(&huart2, (uint8_t *)beginMsg, strlen(beginMsg), 1000)==HAL_ERROR)Error_Handler();
-
-	if(HAL_UART_Transmit(&huart2, (uint8_t*) bufTemp, strlen(bufTemp), 1000)==HAL_ERROR)Error_Handler();
-
-	char *midMsg1 = "°C Humid: ";
-	if(HAL_UART_Transmit(&huart2, (uint8_t *)midMsg1, strlen(midMsg1), 1000)==HAL_ERROR)Error_Handler();
-
-	if(HAL_UART_Transmit(&huart2, (uint8_t*) bufHum, strlen(bufHum), 1000)==HAL_ERROR)Error_Handler();
-
-	char *midMsg2 = "°C Pressure: ";
-	if(HAL_UART_Transmit(&huart2, (uint8_t *)midMsg2, strlen(midMsg2), 1000)==HAL_ERROR)Error_Handler();
-
-	if(HAL_UART_Transmit(&huart2, (uint8_t*) bufPressure, strlen(bufPressure), 1000)==HAL_ERROR)Error_Handler();
-
-	char *midMsg3 = " kPa Dew Point: ";
-	if(HAL_UART_Transmit(&huart2, (uint8_t *)midMsg3, strlen(midMsg3), 1000)==HAL_ERROR)Error_Handler();
-
-	if(HAL_UART_Transmit(&huart2, (uint8_t*) bufDewPoint, strlen(bufDewPoint), 1000)==HAL_ERROR)Error_Handler();
-
-	char *receiveMsg = "°C\n\r";
-	if(HAL_UART_Transmit(&huart2, (uint8_t *)receiveMsg, strlen(receiveMsg), 1000)==HAL_ERROR)Error_Handler();
-*/
-
-	char msg[100];
-	float htu21d_value = 0;
-
-	htu21d_value = getValue(TEMPERATURE);
-
-    sprintf((char*)msg, "Temp C is: %0.2f%s", htu21d_value, "°C");
-	if(HAL_UART_Transmit(&huart2, (uint8_t*) msg, strlen(msg), 1000)==HAL_ERROR)Error_Handler();
-
-	htu21d_value = calcCelsiusToFahrenheit(htu21d_value);
-
-    sprintf((char*)msg, " Temp F is: %0.2f%s", htu21d_value, "°F");
-	if(HAL_UART_Transmit(&huart2, (uint8_t*) msg, strlen(msg), 1000)==HAL_ERROR)Error_Handler();
-
-	htu21d_value = getValue(HUMIDITY);
-
-    sprintf((char*)msg, " Humid is: %0.2f%s", htu21d_value, "%");
-	if(HAL_UART_Transmit(&huart2, (uint8_t*) msg, strlen(msg), 1000)==HAL_ERROR)Error_Handler();
-
-	htu21d_value = getValue(PARTIAL_PRESSURE);
-
-    sprintf((char*)msg, " Pressure is: %0.2f%s", htu21d_value, " kPa");
-	if(HAL_UART_Transmit(&huart2, (uint8_t*) msg, strlen(msg), 1000)==HAL_ERROR)Error_Handler();
-
-	htu21d_value = getValue(DEW_POINT_TEMPERATURE);
-
-    sprintf((char*)msg, " Dew Point is: %0.2f%s\n\r", htu21d_value, "°C");
-	if(HAL_UART_Transmit(&huart2, (uint8_t*) msg, strlen(msg), 1000)==HAL_ERROR)Error_Handler();
+		// Zum esten, Ausgabe der Counter variable
+		/*
+		char msg[100];
+		sprintf((char*)msg, "Counter: %i\n\r", counter);
+		if(HAL_UART_Transmit(&huart2, (uint8_t*) msg, strlen(msg), 1000)==HAL_ERROR)Error_Handler();
+		*/
+	}
 
 
-	/*
-	char bufTemp[10];
-	gcvt(htu21d_value, 7, bufTemp);
-	char *beginMsg = "Temp: ";
-	if(HAL_UART_Transmit(&huart2, (uint8_t *)beginMsg, strlen(beginMsg), 1000)==HAL_ERROR)Error_Handler();
-	if(HAL_UART_Transmit(&huart2, (uint8_t*) bufTemp, strlen(bufTemp), 1000)==HAL_ERROR)Error_Handler();
-	char *receiveMsg = "°C\n\r";
-	if(HAL_UART_Transmit(&huart2, (uint8_t *)receiveMsg, strlen(receiveMsg), 1000)==HAL_ERROR)Error_Handler();
-*/
 
-	HAL_Delay(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -316,6 +347,38 @@ static void MX_I2C1_Init(void)
 }
 
 /**
+  * @brief TIM16 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM16_Init(void)
+{
+
+  /* USER CODE BEGIN TIM16_Init 0 */
+
+  /* USER CODE END TIM16_Init 0 */
+
+  /* USER CODE BEGIN TIM16_Init 1 */
+
+  /* USER CODE END TIM16_Init 1 */
+  htim16.Instance = TIM16;
+  htim16.Init.Prescaler = 31999;
+  htim16.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim16.Init.Period = 1001;
+  htim16.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim16.Init.RepetitionCounter = 0;
+  htim16.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim16) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM16_Init 2 */
+
+  /* USER CODE END TIM16_Init 2 */
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -367,6 +430,12 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin : Button_Pin */
+  GPIO_InitStruct.Pin = Button_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(Button_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pin : LED_Pin */
   GPIO_InitStruct.Pin = LED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -377,7 +446,14 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
 
+	 if(htim == &htim16) {
+		 send_data = true;
+	 }
+
+}
 /* USER CODE END 4 */
 
 /**
